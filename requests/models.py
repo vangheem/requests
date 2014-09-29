@@ -16,11 +16,10 @@ from .structures import CaseInsensitiveDict
 
 from .auth import HTTPBasicAuth
 from .cookies import cookiejar_from_dict, get_cookie_header
-from .packages.urllib3.fields import RequestField
-from .packages.urllib3.filepost import encode_multipart_formdata
-from .packages.urllib3.util import parse_url
-from .packages.urllib3.exceptions import (
-    DecodeError, ReadTimeoutError, ProtocolError)
+try:
+    import urllib3
+except ImportError:
+    from .packages import urllib3
 from .exceptions import (
     HTTPError, RequestException, MissingSchema, InvalidURL,
     ChunkedEncodingError, ContentDecodingError, ConnectionError)
@@ -146,12 +145,12 @@ class RequestEncodingMixin(object):
             if isinstance(fp, bytes):
                 fp = BytesIO(fp)
 
-            rf = RequestField(name=k, data=fp.read(),
-                              filename=fn, headers=fh)
+            rf = urllib3.fields.RequestField(name=k, data=fp.read(),
+                                             filename=fn, headers=fh)
             rf.make_multipart(content_type=ft)
             new_fields.append(rf)
 
-        body, content_type = encode_multipart_formdata(new_fields)
+        body, content_type = urllib3.filepost.encode_multipart_formdata(new_fields)
 
         return body, content_type
 
@@ -342,7 +341,7 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
             return
 
         # Support for unicode domain names and paths.
-        scheme, auth, host, port, path, query, fragment = parse_url(url)
+        scheme, auth, host, port, path, query, fragment = urllib3.util.parse_url(url)
 
         if not scheme:
             raise MissingSchema("Invalid URL {0!r}: No schema supplied. "
@@ -639,11 +638,11 @@ class Response(object):
                 try:
                     for chunk in self.raw.stream(chunk_size, decode_content=True):
                         yield chunk
-                except ProtocolError as e:
+                except urllib3.exceptions.ProtocolError as e:
                     raise ChunkedEncodingError(e)
-                except DecodeError as e:
+                except urllib3.exceptions.DecodeError as e:
                     raise ContentDecodingError(e)
-                except ReadTimeoutError as e:
+                except urllib3.exceptions.ReadTimeoutError as e:
                     raise ConnectionError(e)
             except AttributeError:
                 # Standard file-like object.
